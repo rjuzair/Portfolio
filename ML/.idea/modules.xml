@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/Logistic regression and basis function expansion/.idea/Logistic regression and basis function expansion.iml" filepath="$PROJECT_DIR$/Logistic regression and basis function expansion/.idea/Logistic regression and basis function expansion.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ML.iml" filepath="$PROJECT_DIR$/.idea/ML.iml" />
+    </modules>
+  </component>
+</project>

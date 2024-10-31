@@ -1,4 +1,4 @@
- ---
+w ---
 title: "KNNs"
 output:
   pdf_document:
