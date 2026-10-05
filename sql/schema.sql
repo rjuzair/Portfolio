@@ -118,7 +118,7 @@ CREATE TABLE contact_info (
 CREATE TABLE creditcard_info (
   card_no BIGINT,                   -- Credit card number
   name VARCHAR(40),                 -- Name on the credit card
-  amount INTEGER,                   -- Amount charged to the credit card
+  amount DECIMAL(10, 2),            -- Amount charged to the credit card
   res_no INTEGER,                   -- Reservation number
   PRIMARY KEY (res_no)               -- Setting res_no as the primary key
 );
@@ -241,16 +241,20 @@ DELIMITER ;
 -- Change delimiter to allow for function creation
 DELIMITER //
 
--- Function to calculate the number of free seats for a given flight
+-- Function to calculate the number of free seats for a given flight.
+-- A seat is only taken once its reservation has been paid for (booked);
+-- unpaid reservations do not block seats.
 CREATE FUNCTION calculateFreeSeats(flightnum INT)
 RETURNS INT
+READS SQL DATA
 BEGIN
     DECLARE totalCapacity INT DEFAULT 40;  -- Total capacity of the flight
     DECLARE bookedSeats INT;                -- Variable to hold booked seats count
 
-    -- Calculate total booked seats for the flight
+    -- Calculate total booked (paid) seats for the flight
     SELECT SUM(r.no_passengers) INTO bookedSeats 
     FROM reservation r
+    JOIN creditcard_info c ON c.res_no = r.res_no
     WHERE r.flight_id = flightnum;
 
     -- Handle case where no seats are booked
@@ -265,6 +269,7 @@ END //
 -- Function to calculate the current price of a flight based on various factors
 CREATE FUNCTION calculatePrice(flightnum INT)
 RETURNS DOUBLE
+READS SQL DATA
 BEGIN
     DECLARE finalPrice DOUBLE;  -- Variable to hold the final price
 
@@ -274,7 +279,7 @@ BEGIN
     FROM flights_info fi
     JOIN weekly_schedule ws ON fi.flight_ws_id = ws.w_id
     JOIN route r ON ws.w_route_id = r.route_id
-    JOIN week_day wd ON ws.weekday = wd.weekday
+    JOIN week_day wd ON ws.weekday = wd.weekday AND ws.w_year = wd.year
     JOIN year y ON ws.w_year = y.year
     LEFT JOIN reservation res ON fi.flight_id = res.flight_id
     LEFT JOIN passenger p ON res.res_no = p.res_no
@@ -330,11 +335,11 @@ BEGIN
       AND ws.dept = depttime AND r.departure_ap = deptcode
       AND r.arrival_ap = arrcode AND fi.week = wk;
 
-    -- Check if there are enough free seats
-    IF numpass > calculateFreeSeats(flightid) THEN
-        SELECT 'There are not enough seats available on the chosen flight' AS message;
-    ELSEIF flightid IS NULL THEN
+    -- Check that the flight exists and has enough free seats
+    IF flightid IS NULL THEN
         SELECT 'There exist no flight for the given route, date and time' AS message;
+    ELSEIF numpass > calculateFreeSeats(flightid) THEN
+        SELECT 'There are not enough seats available on the chosen flight' AS message;
     ELSE
         -- Insert new reservation
         INSERT INTO reservation(flight_id, no_passengers)
@@ -368,7 +373,7 @@ BEGIN
     IF maxpass IS NULL THEN
         SELECT 'The reservation number does not exist';
     ELSEIF maxpass <= bookedpass THEN
-        SELECT 'There are not enough seats available on the flight anymore, deleting reservation"' AS message;
+        SELECT 'All passengers for this reservation have already been added' AS message;
     ELSEIF paid = 1 THEN
         SELECT 'The booking has already paid, no further passengers can be added' AS message;
     ELSE
@@ -426,9 +431,9 @@ BEGIN
     FROM reservation 
     WHERE res_no = resnr;
 
-    -- Calculate cost if flight ID is valid
+    -- Total cost = current price per seat x number of passengers
     IF flightid IS NOT NULL THEN
-        SET cost = calculatePrice(flightid);
+        SET cost = calculatePrice(flightid) * numpass;
     END IF;
 
     -- Count the number of contact information entries
