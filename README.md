@@ -26,7 +26,7 @@ A MySQL/MariaDB database for an airline booking system: it models airports, rout
 | `addFlight` | Procedure | Creates a weekly schedule entry and its 52 weekly flights |
 | `addReservation` | Procedure | Finds the flight and creates a reservation if enough seats are free |
 | `addPassenger`, `addContact` | Procedures | Validate the reservation and passenger before inserting |
-| `addPayment` | Procedure | Requires a contact, re-checks seat availability and records the payment at the current price |
+| `addPayment` | Procedure | Requires a contact, re-checks seat availability and charges the current seat price × number of passengers |
 | `calculateFreeSeats` | Function | 40 seats minus seats on **paid** reservations |
 | `calculatePrice` | Function | `route price × weekday factor × profit factor × (booked passengers + 1) / 40` — the price rises as the flight fills |
 | `ticketgenerator` | Trigger | Issues ticket numbers to every passenger once a reservation is paid |

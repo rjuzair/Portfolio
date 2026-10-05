@@ -431,9 +431,9 @@ BEGIN
     FROM reservation 
     WHERE res_no = resnr;
 
-    -- Calculate cost if flight ID is valid
+    -- Total cost = current price per seat x number of passengers
     IF flightid IS NOT NULL THEN
-        SET cost = calculatePrice(flightid);
+        SET cost = calculatePrice(flightid) * numpass;
     END IF;
 
     -- Count the number of contact information entries
