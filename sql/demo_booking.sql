@@ -28,3 +28,9 @@ CALL addReservation('MIT', 'HOB', 2010, 1, 'Monday', '09:00:00', 15, @b);
 
 -- Booking a flight that does not exist is rejected
 CALL addReservation('MIT', 'HOB', 2010, 99, 'Monday', '09:00:00', 2, @c);
+
+-- Tickets are issued on payment: reservation number + passenger sequence
+SELECT passp_no, name, ticket FROM passenger WHERE res_no = @a ORDER BY passp_no;
+
+-- Paying twice for the same reservation is rejected
+CALL addPayment(@a, 'Frodo Baggins', 4111111111111111);
