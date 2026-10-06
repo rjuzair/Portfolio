@@ -101,7 +101,7 @@ CREATE TABLE passenger (
   passp_no INTEGER,                  -- Unique passenger number
   name VARCHAR(30),                  -- Passenger's name
   res_no INTEGER,                    -- Reservation number
-  ticket INTEGER,                    -- Ticket number
+  ticket INTEGER UNIQUE,             -- Ticket number (issued on payment)
   PRIMARY KEY (passp_no, res_no)     -- Composite primary key
 );
 
@@ -126,7 +126,8 @@ CREATE TABLE creditcard_info (
 -- Adding foreign key constraints for data integrity
 ALTER TABLE route
   ADD CONSTRAINT fk_departure_ap FOREIGN KEY (departure_ap) REFERENCES airport(airport_id),
-  ADD CONSTRAINT fk_arrival_ap FOREIGN KEY (arrival_ap) REFERENCES airport(airport_id);
+  ADD CONSTRAINT fk_arrival_ap FOREIGN KEY (arrival_ap) REFERENCES airport(airport_id),
+  ADD CONSTRAINT fk_route_year FOREIGN KEY (year) REFERENCES year(year);
 
 ALTER TABLE weekly_schedule
   ADD CONSTRAINT fk_weekd_ay FOREIGN KEY (weekday, w_year) REFERENCES week_day(weekday, year),
@@ -142,7 +143,7 @@ ALTER TABLE passenger
   ADD CONSTRAINT fk_res_no FOREIGN KEY (res_no) REFERENCES reservation(res_no);
 
 ALTER TABLE contact_info
-  ADD CONSTRAINT fk_passp_no FOREIGN KEY (passp_no) REFERENCES passenger(passp_no),
+  ADD CONSTRAINT fk_contact_passenger FOREIGN KEY (passp_no, res_no) REFERENCES passenger(passp_no, res_no),
   ADD CONSTRAINT fk_res_no1 FOREIGN KEY (res_no) REFERENCES reservation(res_no);
 
 ALTER TABLE creditcard_info
@@ -300,9 +301,17 @@ CREATE TRIGGER ticketgenerator
 AFTER INSERT ON creditcard_info
 FOR EACH ROW
 BEGIN 
+    -- Ticket number = reservation number followed by a 3-digit passenger
+    -- sequence (a reservation has at most 40 passengers), so tickets are
+    -- unique by construction instead of random.
     UPDATE passenger p
-    SET p.ticket = FLOOR(RAND() * 100000)  -- Generate a random ticket number
-    WHERE p.res_no = NEW.res_no;           -- Update the relevant passenger
+    JOIN (
+        SELECT passp_no, ROW_NUMBER() OVER (ORDER BY passp_no) AS seq
+        FROM passenger
+        WHERE res_no = NEW.res_no
+    ) numbered ON numbered.passp_no = p.passp_no
+    SET p.ticket = NEW.res_no * 1000 + numbered.seq
+    WHERE p.res_no = NEW.res_no;
 END //
 DELIMITER ;
 
@@ -425,11 +434,32 @@ BEGIN
     DECLARE flightid INT;      -- Flight ID associated with the reservation
     DECLARE contactcount INT;  -- Count of contact info entries
     DECLARE numpass INT;       -- Number of passengers in the reservation
+    DECLARE alreadypaid INT;   -- 1 if the reservation has already been paid
+
+    -- Roll back the whole payment if any statement fails
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
 
     -- Get flight ID and number of passengers for the reservation
     SELECT flight_id, no_passengers INTO flightid, numpass 
     FROM reservation 
     WHERE res_no = resnr;
+
+    -- Lock the flight row so concurrent payments for the same flight are
+    -- serialised and cannot both take the last free seats
+    IF flightid IS NOT NULL THEN
+        SELECT flight_id INTO flightid
+        FROM flights_info
+        WHERE flight_id = flightid
+        FOR UPDATE;
+    END IF;
+
+    SELECT COUNT(*) INTO alreadypaid FROM creditcard_info WHERE res_no = resnr;
 
     -- Total cost = current price per seat x number of passengers
     IF flightid IS NOT NULL THEN
@@ -444,6 +474,8 @@ BEGIN
     -- Validate conditions before processing payment
     IF flightid IS NULL THEN
         SELECT 'The given reservation number does not exist' AS message;
+    ELSEIF alreadypaid > 0 THEN
+        SELECT 'The reservation has already been paid' AS message;
     ELSEIF numpass > calculateFreeSeats(flightid) THEN
         SELECT 'The flight is fully booked, payment declined.' AS message;
     ELSEIF contactcount = 0 THEN
@@ -453,6 +485,8 @@ BEGIN
         INSERT INTO creditcard_info(card_no, name, amount, res_no)
         VALUES(cardnum, cardname, cost, resnr);
     END IF;
+
+    COMMIT;
 END //
 
 -- Change delimiter to allow for view creation
