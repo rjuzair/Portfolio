@@ -4,6 +4,7 @@ A MySQL/MariaDB database for an airline booking system: it models airports, rout
 
 ![MySQL](https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white)
 ![MariaDB](https://img.shields.io/badge/MariaDB-003545?logo=mariadb&logoColor=white)
+[![sql-tests](https://github.com/rjuzair/Portfolio/actions/workflows/sql-tests.yml/badge.svg)](https://github.com/rjuzair/Portfolio/actions/workflows/sql-tests.yml)
 
 ## Data model
 [ER diagram](docs/er-diagram.pdf) · [Relational model](docs/relational-model.pdf)
@@ -26,10 +27,10 @@ A MySQL/MariaDB database for an airline booking system: it models airports, rout
 | `addFlight` | Procedure | Creates a weekly schedule entry and its 52 weekly flights |
 | `addReservation` | Procedure | Finds the flight and creates a reservation if enough seats are free |
 | `addPassenger`, `addContact` | Procedures | Validate the reservation and passenger before inserting |
-| `addPayment` | Procedure | Requires a contact, re-checks seat availability and charges the current seat price × number of passengers |
+| `addPayment` | Procedure | Requires a contact, locks the flight row, re-checks seat availability and charges the current seat price × number of passengers in one transaction |
 | `calculateFreeSeats` | Function | 40 seats minus seats on **paid** reservations |
 | `calculatePrice` | Function | `route price × weekday factor × profit factor × (booked passengers + 1) / 40` — the price rises as the flight fills |
-| `ticketgenerator` | Trigger | Issues ticket numbers to every passenger once a reservation is paid |
+| `ticketgenerator` | Trigger | Issues unique ticket numbers (reservation number + passenger sequence) once a reservation is paid |
 | `allFlights` | View | Every flight with route, departure time, free seats and current price |
 
 ## Quick start
@@ -38,10 +39,10 @@ mysql -e "CREATE DATABASE flight_reservations"
 mysql flight_reservations < sql/schema.sql
 mysql flight_reservations < sql/demo_booking.sql   # example booking workflow
 mysql flight_reservations -e "SELECT * FROM allFlights LIMIT 5"
+mysql flight_reservations < sql/tests.sql          # assertions; fails loudly on any regression
 ```
-Tested on MariaDB 10.11; compatible with MySQL 8.
+The tests run on every push against **MySQL 8.0** and **MariaDB 10.11** with GitHub Actions.
 
 ## Possible improvements
-- Store payment tokens from a payment provider instead of raw card numbers, and generate ticket numbers with a collision-free sequence instead of `RAND()`.
-- Wrap `addPayment` in a transaction with `SELECT … FOR UPDATE` so two concurrent payments cannot overbook the last seats.
-- Add foreign keys to `weekly_schedule.w_year` and indexes on frequently joined columns.
+- Store payment tokens from a payment provider instead of raw card numbers.
+- Add indexes on frequently joined columns and an audit table for cancelled reservations.
