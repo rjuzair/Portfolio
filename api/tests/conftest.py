@@ -134,7 +134,11 @@ def admin() -> Iterator[DictCursor]:
 
 
 class Flights:
-    """Picks a distinct, untouched flight for each test."""
+    """Picks a distinct, untouched flight for each test.
+
+    Only flights at least 60 days out, so refunds are always in the 100 % tier
+    (in late December next year's first flights are less than 30 days away).
+    """
 
     def __init__(self) -> None:
         self._used: set[int] = set()
@@ -144,7 +148,7 @@ class Flights:
             cur.execute(
                 "SELECT flight_id FROM v_flight_availability "
                 "WHERE aircraft_code = %s AND departure_airport = %s AND seats_booked = 0 "
-                "ORDER BY flight_id",
+                "AND departure_date >= CURDATE() + INTERVAL 60 DAY ORDER BY flight_id",
                 (aircraft, origin),
             )
             for row in cur.fetchall():

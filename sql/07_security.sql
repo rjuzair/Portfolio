@@ -11,6 +11,9 @@
 -- DEFINER), so a role can use them without seeing the tables underneath.
 -- Accounts are created outside this file (scripts/create-api-user.sh), so no
 -- password is ever committed.
+--
+-- MariaDB only lets a role's creator (or a holder WITH ADMIN OPTION) grant it,
+-- so re-run this module with the account that first created the roles.
 -- =============================================================================
 
 CREATE ROLE IF NOT EXISTS flight_app, flight_analyst, flight_ops, flight_api;

@@ -10,6 +10,7 @@
 create_api_user() {
   local user="${API_DB_USER:-booking_api}"
   local password="${API_DB_PASSWORD:?API_DB_PASSWORD must be set}"
+  password="${password//\\/\\\\}"   # escape backslashes, then quotes, for a SQL string
   password="${password//\'/\'\'}"
   # MySQL: SET DEFAULT ROLE r TO u    MariaDB: SET DEFAULT ROLE r FOR u
   local default_role="SET DEFAULT ROLE flight_api TO '${user}'@'%'"
