@@ -1,0 +1,16 @@
+[project]
+name = "flight-reservation-api"
+version = "2.0.0"
+description = "REST API over the flight reservation database"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
