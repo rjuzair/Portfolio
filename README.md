@@ -4,7 +4,7 @@ A MySQL/MariaDB database for an airline booking system: it models airports, rout
 
 ![MySQL](https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white)
 ![MariaDB](https://img.shields.io/badge/MariaDB-003545?logo=mariadb&logoColor=white)
-[![sql-tests](https://github.com/rjuzair/Portfolio/actions/workflows/sql-tests.yml/badge.svg)](https://github.com/rjuzair/Portfolio/actions/workflows/sql-tests.yml)
+[![sql-tests](https://github.com/rjuzair/flight-reservation-database/actions/workflows/sql-tests.yml/badge.svg)](https://github.com/rjuzair/flight-reservation-database/actions/workflows/sql-tests.yml)
 
 ## Data model
 [ER diagram](docs/er-diagram.pdf) · [Relational model](docs/relational-model.pdf)
