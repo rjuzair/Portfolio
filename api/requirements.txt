@@ -1,0 +1,5 @@
+fastapi==0.143.0
+uvicorn==0.54.0
+pydantic-settings==2.15.0
+PyMySQL==1.2.3
+cryptography==50.0.2   # PyMySQL needs it for MySQL 8's caching_sha2_password

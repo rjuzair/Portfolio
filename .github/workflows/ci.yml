@@ -1,0 +1,118 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MYSQL_PWD: root
+
+jobs:
+  sql:
+    name: SQL (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: ["mysql:8.0", "mysql:8.4", "mariadb:10.11", "mariadb:11.4"]
+    services:
+      db:
+        image: ${{ matrix.db }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MARIADB_ROOT_PASSWORD: root
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot || healthcheck.sh --connect"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assertions on a fresh schema
+        run: |
+          db="mysql -h 127.0.0.1 -uroot"
+          $db -e "CREATE DATABASE flight_tests"
+          scripts/load-schema.sh $db flight_tests
+          $db flight_tests < sql/tests.sql
+      - name: Demo walkthrough
+        run: |
+          db="mysql -h 127.0.0.1 -uroot"
+          $db -e "CREATE DATABASE flight_demo"
+          scripts/load-schema.sh $db flight_demo
+          $db --table flight_demo < sql/demo_booking.sql
+      - name: Seed data obeys every rule
+        run: |
+          db="mysql -h 127.0.0.1 -uroot"
+          $db -e "CREATE DATABASE flight_seed"
+          scripts/load-schema.sh $db flight_seed
+          $db --table flight_seed < sql/seed_demo_data.sql
+          test "$($db -N flight_seed -e 'SELECT COUNT(*) FROM v_inventory_drift')" = 0
+
+  api:
+    name: API (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: ["mysql:8.4", "mariadb:11.4"]
+    services:
+      db:
+        image: ${{ matrix.db }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MARIADB_ROOT_PASSWORD: root
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot || healthcheck.sh --connect"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: api/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check . && ruff format --check .
+      - name: Integration tests
+        run: pytest
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_ADMIN_USER: root
+          TEST_DB_ADMIN_PASSWORD: root
+
+  compose:
+    name: Docker Compose smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the stack from an empty volume
+        run: docker compose up --build --detach --wait --wait-timeout 420
+        env:
+          API_DB_PASSWORD: ci-only-password
+      - name: Exercise the API and the web UI
+        run: |
+          curl -fsS http://localhost:8000/api/health
+          curl -fsS "http://localhost:8000/api/flights?origin=ARN&limit=5" \
+            | python3 -c "import json, sys; assert len(json.load(sys.stdin)) == 5, 'expected seeded flights'"
+          curl -fsS http://localhost:8000/api/insights/summary
+          curl -fsS http://localhost:8000/ | grep -q "<title>Flight Reservations</title>"
+      - name: Logs
+        if: failure()
+        run: docker compose logs
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes

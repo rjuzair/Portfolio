@@ -1,0 +1,50 @@
+# MySQL 8.4 with the schema, demo data and a least-privileged API account,
+# plus the API and web UI on http://localhost:8000
+#
+#   cp .env.example .env    # optional: change passwords and ports
+#   docker compose up --build --wait
+name: flight-reservations
+
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: flight_reservations
+      API_DB_USER: booking_api
+      API_DB_PASSWORD: ${API_DB_PASSWORD:-change-me}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./sql:/flight-sql:ro
+      - ./scripts/create-api-user.sh:/flight-scripts/create-api-user.sh:ro
+      - ./docker/initdb.sh:/docker-entrypoint-initdb.d/initdb.sh:ro
+    healthcheck:
+      # TCP only comes up after initialisation has finished
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=tcp", "--silent"]
+      interval: 5s
+      timeout: 5s
+      start_period: 180s
+      retries: 30
+
+  api:
+    build: ./api
+    image: flight-reservations-api
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: flight_reservations
+      DB_USER: booking_api
+      DB_PASSWORD: ${API_DB_PASSWORD:-change-me}
+      INSIGHTS_API_KEY: ${INSIGHTS_API_KEY:-}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
