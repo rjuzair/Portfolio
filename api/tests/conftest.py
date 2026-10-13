@@ -4,7 +4,10 @@ Environment (defaults suit `docker compose up db` / CI):
   TEST_DB_HOST, TEST_DB_PORT              server address (127.0.0.1:3306)
   TEST_DB_ADMIN_USER, TEST_DB_ADMIN_PASSWORD
                                           an account that may create databases,
-                                          users and roles (root / root)
+                                          users and roles (root / root). On
+                                          MariaDB it must also have created the
+                                          flight_* roles, or hold them WITH
+                                          ADMIN OPTION, to grant them.
   TEST_DB_NAME                            scratch database, rebuilt on every run
                                           (flight_reservations_test)
 
