@@ -1,0 +1,36 @@
+name: sql-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: ["mysql:8.0", "mariadb:10.11"]
+    services:
+      db:
+        image: ${{ matrix.db }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MARIADB_ROOT_PASSWORD: root
+          MYSQL_DATABASE: flight_reservations
+          MARIADB_DATABASE: flight_reservations
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot || healthcheck.sh --connect"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load schema, run demo and assertions
+        env:
+          MYSQL_PWD: root
+        run: |
+          db="mysql -h 127.0.0.1 -P 3306 -uroot flight_reservations"
+          $db < sql/schema.sql
+          $db < sql/demo_booking.sql
+          $db < sql/tests.sql
